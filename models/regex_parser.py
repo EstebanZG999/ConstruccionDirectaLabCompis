@@ -1,10 +1,21 @@
 import re
 from collections import deque
 
-class RegexParser:
-    OPERATORS = {'|', '.', '*'}  # Operadores reconocidos
-    PRECEDENCE = {'|': 1, '.': 2, '*': 3}  # Prioridad de operadores
+class Symbol:
+    def __init__(self, value, is_operator=False):
+        self.value = value
+        self.is_operator = is_operator
 
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return f"Symbol({self.value}, is_operator={self.is_operator})"
+
+class RegexParser:
+    OPERATORS = {'|', '.', '*', '+'}  # Operadores reconocidos
+    PRECEDENCE = {'|': 1, '.': 2, '*': 3, '+': 3}  # Prioridad de operadores
+    
     def __init__(self, regex):
         self.regex = regex
         self.tokens = []
@@ -15,20 +26,28 @@ class RegexParser:
         """
         output = []
         prev = None  # Último carácter procesado
+        escaped = False
+        
         for char in self.regex:
-            if char.isalnum() or char == '#':  # Símbolo o marcador de fin
-                if prev and (prev.isalnum() or prev == '*' or prev == ')'):
-                    output.append('.')  # Agrega la concatenación implícita
-                output.append(char)
+            if escaped:
+                output.append(Symbol(char))
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char.isalnum() or char == '#':  # Símbolo o marcador de fin
+                if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
+                    output.append(Symbol('.'))  # Agrega la concatenación implícita
+                output.append(Symbol(char))
             elif char in self.OPERATORS:
-                output.append(char)
+                output.append(Symbol(char, is_operator=True))
             elif char == '(':
-                if prev and (prev.isalnum() or prev == '*' or prev == ')'):
-                    output.append('.')  # Concatenación implícita antes del paréntesis
-                output.append(char)
+                if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
+                    output.append(Symbol('.'))  # Concatenación implícita antes del paréntesis
+                output.append(Symbol(char, is_operator=True))
             elif char == ')':
-                output.append(char)
-            prev = char
+                output.append(Symbol(char, is_operator=True))
+            prev = output[-1] if output else None
+        
         self.tokens = output
         return output
     
@@ -40,17 +59,17 @@ class RegexParser:
         stack = deque()
         
         for token in self.tokens:
-            if token.isalnum() or token == '#':  # Si es un símbolo, agrégalo a la salida
+            if not token.is_operator:
                 output.append(token)
-            elif token == '(':
+            elif token.value == '(':
                 stack.append(token)
-            elif token == ')':
-                while stack and stack[-1] != '(':
+            elif token.value == ')':
+                while stack and stack[-1].value != '(':
                     output.append(stack.pop())
-                stack.pop()  # Elimina el '('
-            elif token in self.OPERATORS:
-                while (stack and stack[-1] in self.OPERATORS and
-                       self.PRECEDENCE[token] <= self.PRECEDENCE[stack[-1]]):
+                stack.pop()
+            elif token.value in self.OPERATORS:
+                while (stack and stack[-1].value in self.OPERATORS and
+                       self.PRECEDENCE[token.value] <= self.PRECEDENCE[stack[-1].value]):
                     output.append(stack.pop())
                 stack.append(token)
         
@@ -67,11 +86,8 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)*abb#"
+    regex = "(a|b)+a*bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
-    print("Tokens:", parser.tokens)
-    print("Postfix:", postfix)
-
-    #caracter de escape
-    
+    print("Tokens:", [str(token) for token in parser.tokens])
+    print("Postfix:", [str(token) for token in postfix])
