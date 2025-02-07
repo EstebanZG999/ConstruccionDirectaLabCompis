@@ -30,14 +30,16 @@ class RegexParser:
         
         for char in self.regex:
             if escaped:
-                output.append(Symbol(char))
+                if prev and not prev.is_operator:
+                    output.append(Symbol('.')) 
+                output.append(Symbol(char, is_operator=False))   
                 escaped = False
             elif char == '\\':
                 escaped = True
             elif char.isalnum() or char == '#':  # Símbolo o marcador de fin
                 if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
                     output.append(Symbol('.'))  # Agrega la concatenación implícita
-                output.append(Symbol(char))
+                output.append(Symbol(char, is_operator=False))
             elif char == '+':
                 if prev and not prev.is_operator:  # Asegurar que `+` tiene un operando válido
                     output.append(Symbol('.'))  # Concatenación con sí mismo
@@ -54,6 +56,9 @@ class RegexParser:
             elif char == ')':
                 output.append(Symbol(char, is_operator=True))
             prev = output[-1] if output else None
+
+        if escaped:
+            raise ValueError("Secuencia de escape incompleta en la expresión regular.")
         
         self.tokens = output
         return output
@@ -93,7 +98,7 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)*a\+bb#"
+    regex = "(a|b)\*a+bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
