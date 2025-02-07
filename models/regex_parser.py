@@ -10,12 +10,12 @@ class Symbol:
         return self.value
 
     def __repr__(self):
-        return f"Symbol({self.value}, is_operator={self.is_operator})"
+        return self.value 
 
 class RegexParser:
-    OPERATORS = {'|', '.', '*', '+'}  # Operadores reconocidos
-    PRECEDENCE = {'|': 1, '.': 2, '*': 3, '+': 3}  # Prioridad de operadores
-    
+    OPERATORS = {'|', '.', '*', '+'} 
+    PRECEDENCE = {'|': 1, '.': 2, '*': 3, '+': 3} 
+
     def __init__(self, regex):
         self.regex = regex
         self.tokens = []
@@ -25,7 +25,7 @@ class RegexParser:
         Convierte la expresión regular en una lista de tokens, insertando concatenaciones explícitas.
         """
         output = []
-        prev = None  # Último carácter procesado
+        prev = None  
         escaped = False
         
         for char in self.regex:
@@ -38,6 +38,13 @@ class RegexParser:
                 if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
                     output.append(Symbol('.'))  # Agrega la concatenación implícita
                 output.append(Symbol(char))
+            elif char == '+':
+                if prev and not prev.is_operator:  # Asegurar que `+` tiene un operando válido
+                    output.append(Symbol('.'))  # Concatenación con sí mismo
+                    output.append(prev)  # Se repite el símbolo
+                    output.append(Symbol('*', is_operator=True))  # Se agrega la cerradura de Kleene
+                else:
+                    raise ValueError("El operador '+' no tiene un operando válido.")
             elif char in self.OPERATORS:
                 output.append(Symbol(char, is_operator=True))
             elif char == '(':
@@ -66,7 +73,7 @@ class RegexParser:
             elif token.value == ')':
                 while stack and stack[-1].value != '(':
                     output.append(stack.pop())
-                stack.pop()
+                stack.pop()  # Elimina el '('
             elif token.value in self.OPERATORS:
                 while (stack and stack[-1].value in self.OPERATORS and
                        self.PRECEDENCE[token.value] <= self.PRECEDENCE[stack[-1].value]):
@@ -86,8 +93,8 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)+a*bb#"
+    regex = "(a|b)*a\+bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
-    print("Tokens:", [str(token) for token in parser.tokens])
-    print("Postfix:", [str(token) for token in postfix])
+    print("Tokens:", [str(token) for token in parser.tokens])  
+    print("Postfix:", [str(token) for token in postfix])  
