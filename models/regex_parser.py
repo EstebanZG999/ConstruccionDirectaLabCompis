@@ -23,35 +23,37 @@ class RegexParser:
     def tokenize(self):
         """
         Convierte la expresión regular en una lista de tokens, insertando concatenaciones explícitas.
+        Se utiliza enumerate para saber cuándo es el último carácter (por ejemplo, para el '#' final).
         """
         output = []
         prev = None  
         escaped = False
         
-        for char in self.regex:
+        for i, char in enumerate(self.regex):
             if escaped:
                 if prev and not prev.is_operator:
                     output.append(Symbol('.')) 
-                output.append(Symbol(char, is_operator=False))   
+                output.append(Symbol(char, is_operator=False))
                 escaped = False
             elif char == '\\':
                 escaped = True
-            elif char.isalnum() or char == '#':  # Símbolo o marcador de fin
-                if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
-                    output.append(Symbol('.'))  # Agrega la concatenación implícita
+            elif char.isalnum() or char == '#':  # Simbolo o marcador de fin
+                if not (char == '#' and i == len(self.regex) - 1):
+                    if prev and (not prev.is_operator or prev.value in {'*', '+', ')'}):
+                        output.append(Symbol('.'))
                 output.append(Symbol(char, is_operator=False))
             elif char == '+':
-                if prev and not prev.is_operator:  # Asegurar que `+` tiene un operando válido
+                if prev and not prev.is_operator:  # Asegurar que + tiene un operando válido
                     output.append(Symbol('.'))  # Concatenación con sí mismo
-                    output.append(prev)  # Se repite el símbolo
+                    output.append(Symbol(prev.value, is_operator=False)) # Se agrega el simbolo * nuevo
                     output.append(Symbol('*', is_operator=True))  # Se agrega la cerradura de Kleene
                 else:
                     raise ValueError("El operador '+' no tiene un operando válido.")
             elif char in self.OPERATORS:
                 output.append(Symbol(char, is_operator=True))
             elif char == '(':
-                if prev and (isinstance(prev, Symbol) and not prev.is_operator or prev.value in {'*', '+', ')'}):
-                    output.append(Symbol('.'))  # Concatenación implícita antes del paréntesis
+                if prev and (not prev.is_operator or prev.value in {'*', '+', ')'}):
+                    output.append(Symbol('.'))
                 output.append(Symbol(char, is_operator=True))
             elif char == ')':
                 output.append(Symbol(char, is_operator=True))
@@ -65,7 +67,11 @@ class RegexParser:
     
     def to_postfix(self):
         """
-        Convierte la expresión regular en notación postfija (RPN) usando el algoritmo de Shunting-yard.
+        Convierte la expresión regular (con concatenaciones explícitas) en notación postfija (RPN)
+        usando una variante del algoritmo de Shunting-yard:
+          - Los operadores binarios ('.' y '|') se manejan en la pila.
+          - Los operadores unarios (como '*') se colocan directamente en la salida.
+        Además, al vaciar la pila se descarta el operador de concatenación si se aplicaría a '#' final.
         """
         output = []
         stack = deque()
@@ -78,16 +84,21 @@ class RegexParser:
             elif token.value == ')':
                 while stack and stack[-1].value != '(':
                     output.append(stack.pop())
-                stack.pop()  # Elimina el '('
-            elif token.value in self.OPERATORS:
-                while (stack and stack[-1].value in self.OPERATORS and
+                stack.pop()  # Descarta el '('
+            elif token.value in {'|', '.'}:  # operadores binarios
+                while (stack and stack[-1].value in {'|', '.'} and
                        self.PRECEDENCE[token.value] <= self.PRECEDENCE[stack[-1].value]):
                     output.append(stack.pop())
                 stack.append(token)
+            elif token.value == '*':  # operador unario (postfijo): se coloca directamente en la salida
+                output.append(token)
         
         while stack:
-            output.append(stack.pop())
-        
+            op = stack.pop()
+            if op.value == '.' and output and output[-1].value == '#':
+                continue
+            output.append(op)
+
         return output
     
     def parse(self):
@@ -98,7 +109,7 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)\*a+bb#"
+    regex = r"(a|b)\*a+bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
