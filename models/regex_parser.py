@@ -64,15 +64,38 @@ class RegexParser:
                 output.append(token)
                 last_token = token
                 continue
-            elif char == '+': # Sólo se aplica si NO está escapado 
+            elif char == '+': # Operador '+' 
                 if last_token is None:
                     raise ValueError("El operador '+' no tiene un operando válido.")
-                output.append(Symbol('.', is_operator=True))
-                token_literal = Symbol(last_token.value, is_operator=False)
-                output.append(token_literal)
-                token_kleene = Symbol('*', is_operator=True)
-                output.append(token_kleene)
-                last_token = token_kleene
+                if last_token.value == ')':
+                    # Caso: el '+' se aplica a un grupo.
+                    # Buscar el paréntesis de apertura que corresponde al último ')'.
+                    group_start = None
+                    for idx in range(len(output) - 1, -1, -1):
+                        if output[idx].value == '(':
+                            group_start = idx
+                            break
+                    if group_start is None:
+                        raise ValueError("No se encontró '(' que corresponda al ')'.")
+                    # Copiar los tokens que componen el grupo (sin contar los paréntesis)
+                    group_tokens = [Symbol(tok.value, tok.is_operator) for tok in output[group_start+1: len(output)-1]
+                                   ]
+                    # Insertar concatenación explícita antes de la copia del grupo
+                    output.append(Symbol('.', is_operator=True))
+                    # Envolver la copia en paréntesis para que se trate como un subgrupo completo
+                    output.append(Symbol('(', is_operator=True))
+                    output.extend(group_tokens)
+                    output.append(Symbol(')', is_operator=True))
+                    # Agregar el operador '*'
+                    output.append(Symbol('*', is_operator=True))
+                    last_token = output[-1]
+                else:
+                    # Caso: el '+' se aplica a un literal.
+                    output.append(Symbol('.', is_operator=True))
+                    token_literal = Symbol(last_token.value, is_operator=False)
+                    output.append(token_literal)
+                    output.append(Symbol('*', is_operator=True))
+                    last_token = output[-1]
                 continue
             elif char in self.OPERATORS:
                 token = Symbol(char, is_operator=True)
@@ -90,9 +113,8 @@ class RegexParser:
                 last_token = None
                 continue
             elif char == ')':
-                token = Symbol(')', is_operator=True)
-                output.append(token)
-                last_token = token
+                output.append(Symbol(')', is_operator=True))
+                last_token = Symbol(')', is_operator=True)
                 continue
             raise ValueError(f"Carácter no reconocido: {char}")
 
@@ -105,8 +127,7 @@ class RegexParser:
     def to_postfix(self):
         """
         Convierte la expresión regular (con concatenaciones explícitas) en notación postfija (RPN)
-        usando una variante del algoritmo de Shunting-yard.
-        Además, al vaciar la pila se descarta el operador de concatenación si se aplicaría a '#' final.
+        usando el algoritmo de Shunting-yard.
         """
         output = []
         stack = deque()
@@ -146,7 +167,7 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = r"(a|b)*a+bb#"
+    regex = "(a|b)+bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
