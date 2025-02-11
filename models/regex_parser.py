@@ -55,7 +55,7 @@ class RegexParser:
             elif char == '\\':
                 escaped = True
                 continue
-            elif char.isalnum() or char == '#':  # Simbolo o marcador de fin
+            elif char.isalnum() or char == '#'or char == '$':  # Simbolo o marcador de fin
                 # Inserta concatenación si no es el último
                 if self.should_concat(last_token, 'literal'):
                     output.append(Symbol('.', is_operator=True))
@@ -152,8 +152,6 @@ class RegexParser:
         
         while stack:
             op = stack.pop()
-            if op.value == '.' and output and output[-1].value == '#':
-                continue
             output.append(op)
 
         return output
@@ -166,7 +164,7 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)+bb#"
+    regex = "(a|b)*bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
