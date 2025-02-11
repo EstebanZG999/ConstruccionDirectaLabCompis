@@ -1,6 +1,5 @@
 import re
 from collections import deque
-from syntax_tree import SyntaxTree
 
 class Symbol:
     def __init__(self, value, is_operator=False):
@@ -56,11 +55,10 @@ class RegexParser:
             elif char == '\\':
                 escaped = True
                 continue
-            elif char.isalnum() or char == '#':  # Simbolo o marcador de fin
+            elif char.isalnum() or char == '#'or char == '$':  # Simbolo o marcador de fin
                 # Inserta concatenación si no es el último
-                if not (char == '#' and i == len(self.regex) - 1):
-                    if self.should_concat(last_token, 'literal'):
-                        output.append(Symbol('.', is_operator=True))
+                if self.should_concat(last_token, 'literal'):
+                    output.append(Symbol('.', is_operator=True))
                 token = Symbol(char, is_operator=False)
                 output.append(token)
                 last_token = token
@@ -154,8 +152,6 @@ class RegexParser:
         
         while stack:
             op = stack.pop()
-            if op.value == '.' and output and output[-1].value == '#':
-                continue
             output.append(op)
 
         return output
@@ -167,14 +163,9 @@ class RegexParser:
         self.tokenize()
         return self.to_postfix()
 
-
 if __name__ == "__main__":
-    regex = "(a|b)+bb#"
+    regex = "(a|b)*bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
     print("Postfix:", [str(token) for token in postfix])  
-
-    syntax_tree = SyntaxTree(postfix)
-    syntax_tree.render("syntax_tree")  # Genera la imagen del árbol
-    

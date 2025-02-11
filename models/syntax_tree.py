@@ -7,18 +7,24 @@ class NodoBase:
         self.firstpos = set()
         self.lastpos = set()
 
+    # Método polimórfico a sobrescribir en hijos
+    def to_dot(self, dot):
+        pass
+
 class NodoHoja(NodoBase):
     def __init__(self, valor, posicion):
         super().__init__(valor)
         self.posicion = posicion
         self.firstpos.add(posicion)
         self.lastpos.add(posicion)
-        self.nullable = False if valor != 'ε' else True
+        self.nullable = (valor == 'ε')
 
+    def to_dot(self, dot):
+        """Agrega este nodo hoja al gráfico DOT."""
+        dot.node(str(id(self)),
+                 f"{self.valor} ({self.posicion})",
+                 shape="ellipse")
 
-    def to_dot(self, graph):
-        """ Agrega este nodo hoja al gráfico DOT. """
-        graph.node(str(id(self)), f"{self.valor} ({self.posicion})", shape="ellipse")
 
 class NodoBinario(NodoBase):
     def __init__(self, valor, izquierdo, derecho):
@@ -30,20 +36,29 @@ class NodoBinario(NodoBase):
     def calcular_propiedades(self):
         if self.valor == '.':  # Concatenación
             self.nullable = self.izquierdo.nullable and self.derecho.nullable
-            self.firstpos = self.izquierdo.firstpos | (self.derecho.firstpos if self.izquierdo.nullable else set())
-            self.lastpos = self.derecho.lastpos | (self.izquierdo.lastpos if self.derecho.nullable else set())
+            self.firstpos = (self.izquierdo.firstpos |
+                             (self.derecho.firstpos if self.izquierdo.nullable else set()))
+            self.lastpos = (self.derecho.lastpos |
+                            (self.izquierdo.lastpos if self.derecho.nullable else set()))
         elif self.valor == '|':  # Alternancia
             self.nullable = self.izquierdo.nullable or self.derecho.nullable
             self.firstpos = self.izquierdo.firstpos | self.derecho.firstpos
             self.lastpos = self.izquierdo.lastpos | self.derecho.lastpos
 
-    def to_dot(self, graph):
-        """ Agrega este nodo binario y sus conexiones al gráfico DOT. """
-        graph.node(str(id(self)), self.valor, shape="box")
-        self.izquierdo.to_dot(graph)
-        self.derecho.to_dot(graph)
-        graph.edge(str(id(self)), str(id(self.izquierdo)))
-        graph.edge(str(id(self)), str(id(self.derecho)))
+    def to_dot(self, dot):
+        """Agrega este nodo binario y sus conexiones al gráfico DOT."""
+        dot.node(str(id(self)),
+                 f"{self.valor}",
+                 shape="box")
+
+        # Dibujar hijos
+        self.izquierdo.to_dot(dot)
+        self.derecho.to_dot(dot)
+
+        # Conectar con aristas
+        dot.edge(str(id(self)), str(id(self.izquierdo)))
+        dot.edge(str(id(self)), str(id(self.derecho)))
+
 
 class NodoUnario(NodoBase):
     def __init__(self, valor, hijo):
@@ -57,11 +72,15 @@ class NodoUnario(NodoBase):
             self.firstpos = self.hijo.firstpos
             self.lastpos = self.hijo.lastpos
 
-    def to_dot(self, graph):
-        """ Agrega este nodo unario y su conexión al gráfico DOT. """
-        graph.node(str(id(self)), self.valor, shape="diamond")
-        self.hijo.to_dot(graph)
-        graph.edge(str(id(self)), str(id(self.hijo)))
+    def to_dot(self, dot):
+        """Agrega este nodo unario y su conexión al gráfico DOT."""
+        dot.node(str(id(self)),
+                 f"{self.valor}",
+                 shape="diamond")
+
+        self.hijo.to_dot(dot)
+        dot.edge(str(id(self)), str(id(self.hijo)))
+
 
 class SyntaxTree:
     def __init__(self, postfix):
@@ -72,35 +91,46 @@ class SyntaxTree:
     def construir_arbol(self):
         stack = []
         for token in self.postfix:
-            if token.isalnum() or token == '#':  # Nodo hoja
-                stack.append(NodoHoja(token, self.posicion_actual))
+            # token es un Symbol. Para hojas comparamos token.value
+            if token.value.isalnum() or token.value == '#':
+                nodo_hoja = NodoHoja(token.value, self.posicion_actual)
+                stack.append(nodo_hoja)
                 self.posicion_actual += 1
-            elif token == '*':  # Nodo unario
+            elif token.value == '*':  # Nodo unario
                 nodo = stack.pop()
-                stack.append(NodoUnario(token, nodo))
-            elif token in {'.', '|'}:  # Nodo binario
+                stack.append(NodoUnario(token.value, nodo))
+            elif token.value in {'.', '|'}:  # Nodo binario
                 derecho = stack.pop()
                 izquierdo = stack.pop()
-                stack.append(NodoBinario(token, izquierdo, derecho))
+                stack.append(NodoBinario(token.value, izquierdo, derecho))
+        # El último nodo en el stack es la raíz
         return stack.pop()
     
     def obtener_raiz(self):
         return self.raiz
     
     def render(self, filename="syntax_tree"):
-        """Genera una imagen del árbol sintáctico usando Graphviz."""
+        """Genera una imagen (PNG) del árbol sintáctico usando Graphviz."""
         dot = graphviz.Digraph(format="png")
         if self.raiz:
             self.raiz.to_dot(dot)
-        dot.render(filename, view=True)  # Renderiza y abre la imagen
+        dot.render(filename, view=True)  # Renderiza y abre la imagen resultante
 
 if __name__ == "__main__":
     from regex_parser import RegexParser
-    regex = "(a|b)*abb#"
+
+    regex = "(a|b)a*bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     
+    # Imprimimos tokens y postfix para verificar
+    print("Tokens:", [str(t) for t in parser.tokens])
+    print("Postfix:", [str(p) for p in postfix])
+
     syntax_tree = SyntaxTree(postfix)
     raiz = syntax_tree.obtener_raiz()
     
-    print("Árbol sintáctico construido correctamente.")
+    # Genera y muestra el árbol con Graphviz
+    syntax_tree.render("syntax_tree")
+
+    print("Árbol sintáctico construido y graficado correctamente.")

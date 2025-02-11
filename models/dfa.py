@@ -1,192 +1,154 @@
 # dfa.py
-from typing import Set, Dict, List, Optional
+
+from syntax_tree import NodoHoja, NodoBinario, NodoUnario, SyntaxTree
 
 class DFA:
-    """
-    Clase para representar y simular un AFD construido
-    mediante el algoritmo directo (posiciones).
-    """
-    def __init__(self, transitions: Dict[frozenset, Dict[str, frozenset]],
-                 initial_state: frozenset,
-                 accept_states: List[frozenset]):
-        """
-        :param transitions: Mapa de estado -> (símbolo -> estado siguiente)
-                            donde estado es un frozenset de posiciones.
-        :param initial_state: Conjunto (inmutable) de posiciones que representan el estado inicial.
-        :param accept_states: Lista de estados finales.
-        """
-        self.transitions = transitions
-        self.initial_state = initial_state
-        self.accept_states = accept_states
+    def __init__(self, syntax_tree):
+        self.syntax_tree = syntax_tree
+        # Calcula la función followpos y el mapeo de posiciones a símbolos
+        self.followpos = self.compute_followpos(syntax_tree.raiz)
+        self.pos_to_symbol = self.compute_pos_to_symbol(syntax_tree.raiz)
+        # Definir el alfabeto (excluimos el marcador '#' de entrada)
+        self.alphabet = {symbol for pos, symbol in self.pos_to_symbol.items() if symbol != '#'}
+        # Diccionario para almacenar los estados (clave: frozenset de posiciones, valor: ID del estado)
+        self.states = {}
+        # Tabla de transiciones: {estado_id: {símbolo: estado_id_destino}}
+        self.transitions = {}
+        self.initial_state = None
+        self.accepting_states = set()
+        # Construir el AFD
+        self.build_dfa()
 
-    def simulate(self, input_string: str) -> bool:
-        """
-        Determina si la cadena de entrada es aceptada por este AFD.
-        :param input_string: Cadena a evaluar.
-        :return: True si es aceptada, False en caso contrario.
-        """
+    def compute_followpos(self, node):
+        """Calcula la función followpos para cada posición del árbol."""
+        followpos = {}
+
+        # Primero, inicializamos followpos para cada hoja (NodoHoja)
+        def init_followpos(n):
+            if isinstance(n, NodoHoja):
+                followpos[n.posicion] = set()
+            elif isinstance(n, NodoBinario):
+                init_followpos(n.izquierdo)
+                init_followpos(n.derecho)
+            elif isinstance(n, NodoUnario):
+                init_followpos(n.hijo)
+        init_followpos(node)
+
+        # Ahora, recorremos el árbol para actualizar followpos según el operador
+        def traverse(n):
+            if isinstance(n, NodoBinario):
+                traverse(n.izquierdo)
+                traverse(n.derecho)
+                if n.valor == '.':
+                    # Para cada posición en lastpos del hijo izquierdo, se añade firstpos del hijo derecho.
+                    for pos in n.izquierdo.lastpos:
+                        followpos[pos] = followpos[pos].union(n.derecho.firstpos)
+            elif isinstance(n, NodoUnario):
+                traverse(n.hijo)
+                if n.valor == '*':
+                    # Para cada posición en lastpos del hijo, se añade firstpos del mismo hijo.
+                    for pos in n.hijo.lastpos:
+                        followpos[pos] = followpos[pos].union(n.hijo.firstpos)
+            # Para NodoHoja no se hace nada
+        traverse(node)
+        return followpos
+
+    def compute_pos_to_symbol(self, node):
+        """Crea un diccionario que mapea cada posición de un nodo hoja a su símbolo."""
+        pos_to_symbol = {}
+
+        def traverse(n):
+            if isinstance(n, NodoHoja):
+                pos_to_symbol[n.posicion] = n.valor
+            elif isinstance(n, NodoBinario):
+                traverse(n.izquierdo)
+                traverse(n.derecho)
+            elif isinstance(n, NodoUnario):
+                traverse(n.hijo)
+        traverse(node)
+        return pos_to_symbol
+
+    def build_dfa(self):
+        """Construye el AFD utilizando la función followpos y la notación de conjuntos de posiciones."""
+        # Estado inicial: firstpos de la raíz del árbol
+        initial = frozenset(self.syntax_tree.raiz.firstpos)
+        self.states[initial] = 0  # Asignamos el ID 0 al estado inicial
+        self.initial_state = 0
+        unmarked_states = [initial]
+        state_id_counter = 0
+
+        # Algoritmo de construcción
+        while unmarked_states:
+            current = unmarked_states.pop(0)
+            current_state_id = self.states[current]
+            self.transitions[current_state_id] = {}
+
+            for symbol in self.alphabet:
+                # Para cada símbolo, calculamos el conjunto U:
+                # U = ⋃ { followpos(p) | p ∈ current y el símbolo en p es 'symbol' }
+                u = set()
+                for pos in current:
+                    if self.pos_to_symbol[pos] == symbol:
+                        u = u.union(self.followpos[pos])
+                if u:
+                    u = frozenset(u)
+                    if u not in self.states:
+                        state_id_counter += 1
+                        self.states[u] = state_id_counter
+                        unmarked_states.append(u)
+                    self.transitions[current_state_id][symbol] = self.states[u]
+
+        # Definir los estados de aceptación: aquellos estados que contienen la posición del marcador '#'
+        for state_set, state_id in self.states.items():
+            for pos in state_set:
+                if self.pos_to_symbol[pos] == '#':
+                    self.accepting_states.add(state_id)
+                    break
+
+    def simulate(self, string):
+        """Simula el AFD con la cadena de entrada 'string'. Devuelve True si se acepta, False en caso contrario."""
         current_state = self.initial_state
-
-        for symbol in input_string:
-            # Si no existe transición para el símbolo, la cadena se rechaza
-            if current_state not in self.transitions or symbol not in self.transitions[current_state]:
+        for ch in string:
+            # Si no existe una transición para el símbolo, se rechaza la cadena.
+            if ch in self.transitions[current_state]:
+                current_state = self.transitions[current_state][ch]
+            else:
                 return False
-            current_state = self.transitions[current_state][symbol]
+        return current_state in self.accepting_states
 
-        # Verificar si el estado final es de aceptación
-        return current_state in self.accept_states
-
-
-def build_dfa(syntax_tree) -> DFA:
-    """
-    Construye el AFD a partir de un árbol sintáctico que ya tiene calculados
-    nullable, firstpos, lastpos y un número de posición en cada hoja.
-    Se asume que la posición del símbolo '#' es la última o está bien identificada.
-
-    :param syntax_tree: Raíz del árbol sintáctico anotado.
-    :return: Instancia de la clase DFA construida.
-    """
-
-    # 1. Recolectar información de las hojas
-    # Aquí necesitarás una función que recorra el árbol y recopile:
-    #   - La posición asociada a cada nodo hoja.
-    #   - El símbolo que contiene.
-    #   - La posición especial del símbolo #.
-    #
-    # Persona A debe proveer un método para obtener esto, o podrías implementarlo
-    #   de manera que al recorrer el árbol, armes una lista o diccionario.
-    #
-    # Por ejemplo:
-    # leaves_info = collect_leaves_info(syntax_tree)  # Suponiendo que sea un dict: {pos -> symbol}
-    leaves_info = _collect_leaves_info(syntax_tree)
-
-    # 2. Calcular followpos para cada posición
-    # Lo normal es que en tu árbol ya hayas guardado un diccionario "followpos[pos] = { ... }"
-    # durante la anotación. Pero si aún no está calculado, aquí lo harías.
-    # Por ejemplo:
-    # followpos_map = compute_followpos(syntax_tree)
-    followpos_map = _compute_followpos(syntax_tree)
-
-    # Identificar la posición correspondiente a '#'
-    end_position = None
-    for pos, symbol in leaves_info.items():
-        if symbol == '#':
-            end_position = pos
-            break
-
-    # 3. Crear el estado inicial (firstpos de la raíz)
-    initial_state = frozenset(syntax_tree.firstpos)  # Se asume que syntax_tree tiene un atributo firstpos
-
-    # 4. Generar iterativamente todos los estados del AFD
-    states_unmarked = [initial_state]
-    dfa_states = [initial_state]  # lista (o set) de todos los estados encontrados
-    transitions = {}
-    accept_states = []
-
-    while states_unmarked:
-        current = states_unmarked.pop()
-        transitions[current] = {}
-
-        # Para cada símbolo posible que sale de current, calculamos el siguiente estado
-        # Identificamos las posiciones en 'current' que tienen un símbolo particular
-        # y unimos los followpos correspondientes.
-        symbols_seen = {}  # símbolo -> set de followpos
-
-        for pos in current:
-            symbol = leaves_info[pos]
-            if symbol != '#':  # No construimos transición con el marcador de fin
-                if symbol not in symbols_seen:
-                    symbols_seen[symbol] = set()
-                symbols_seen[symbol].update(followpos_map[pos])
-
-        # Ahora construimos las transiciones
-        for symbol, nextpos_set in symbols_seen.items():
-            next_state = frozenset(nextpos_set)
-            transitions[current][symbol] = next_state
-
-            if next_state not in dfa_states:
-                dfa_states.append(next_state)
-                states_unmarked.append(next_state)
-
-    # 5. Determinar qué estados son finales
-    # Un estado es final si contiene la posición del símbolo '#' en su conjunto
-    for state in dfa_states:
-        if end_position in state:
-            accept_states.append(state)
-
-    # 6. Instanciar y retornar el DFA
-    return DFA(transitions=transitions,
-               initial_state=initial_state,
-               accept_states=accept_states)
+    def print_dfa(self):
+        """Imprime la tabla de transiciones y los estados de aceptación."""
+        print("Estados y sus conjuntos de posiciones:")
+        for state_set, state_id in self.states.items():
+            aceptacion = " (aceptación)" if state_id in self.accepting_states else ""
+            print(f"Estado {state_id}{aceptacion}: {set(state_set)}")
+        print("\nTransiciones:")
+        for state_id, trans in self.transitions.items():
+            for symbol, target in trans.items():
+                print(f"  δ({state_id}, '{symbol}') = {target}")
 
 
-# -----------------------------------------------------------------------------
-# Funciones privadas / helpers (podrías moverlas a `utils/helpers.py`):
-# -----------------------------------------------------------------------------
-
-def _collect_leaves_info(syntax_tree) -> Dict[int, str]:
-    """
-    Recorre el árbol y devuelve un dict pos -> símbolo.
-    Asume que cada hoja tiene atributos:
-      - position: int (posición única en la expresión)
-      - symbol: str (símbolo correspondiente, e.g. 'a', 'b', '#')
-    """
-    leaves = {}
-    def _dfs(node):
-        if node.is_leaf():
-            leaves[node.position] = node.symbol
-        else:
-            for child in node.children:
-                _dfs(child)
-
-    _dfs(syntax_tree)
-    return leaves
-
-
-def _compute_followpos(syntax_tree) -> Dict[int, Set[int]]:
-    """
-    Computa el followpos de cada posición según las reglas:
-      - Concatenación: lastpos(X) -> firstpos(Y)
-      - Cerradura (*): lastpos(X*) -> firstpos(X*)
-    Asume que el árbol ya tiene metadatos para:
-      - node.firstpos
-      - node.lastpos
-      - node.nullable
-    y que cada nodo interno sabe qué tipo de operación es.
+if __name__ == "__main__":
+    # Ejemplo de uso:
+    # 1. Se define una expresión regular.
+    regex = "(a|b)*abb#"
+    # 2. Se crea el parser y se genera la notación postfija.
+    from regex_parser import RegexParser
+    parser = RegexParser(regex)
+    postfix = parser.parse()
+    # 3. Se construye el árbol sintáctico.
+    syntax_tree = SyntaxTree(postfix)
+    # 4. Se construye el AFD a partir del árbol sintáctico.
+    dfa = DFA(syntax_tree)
     
-    En muchos diseños, este diccionario se va llenando durante la construcción
-    post-orden. Aquí lo mostramos simplificado como si lo hiciéramos
-    en un solo recorrido.
-    """
-    # Inicializamos un mapa pos-> set()
-    followpos_map = {}
+    # Imprime la tabla de transiciones y los estados.
+    print("Tokens:", [str(token) for token in parser.tokens])
+    print("Postfix:", [str(token) for token in postfix])
+
+    dfa.print_dfa()
     
-    # Llenar con llaves vacías para todas las hojas
-    def _init_followpos(node):
-        if node.is_leaf():
-            followpos_map[node.position] = set()
-        else:
-            for child in node.children:
-                _init_followpos(child)
-    _init_followpos(syntax_tree)
-
-    # Recorremos el árbol en post-orden para aplicar las reglas
-    def _postorder(node):
-        # Procesar hijos primero
-        for child in getattr(node, 'children', []):
-            _postorder(child)
-
-        node_type = node.type  # 'CONCAT', 'UNION', 'KLEENE', o 'LEAF'
-        if node_type == 'CONCAT':
-            left, right = node.left, node.right
-            for p in left.lastpos:
-                followpos_map[p].update(right.firstpos)
-        elif node_type == 'KLEENE':
-            # lastpos(X*) se une con firstpos(X*)
-            for p in node.lastpos:
-                followpos_map[p].update(node.firstpos)
-        # para la unión, no se hace nada especial
-        # para las hojas, tampoco
-
-    _postorder(syntax_tree)
-    return followpos_map
+    # 5. Simulación del AFD con cadenas de prueba.
+    test_strings = ["abab", "aabb", "ababb", "ababbbbabb"]
+    for s in test_strings:
+        result = dfa.simulate(s)
+        print(f"\nLa cadena '{s}' {'es aceptada' if result else 'NO es aceptada'} por la expresión regular.")
