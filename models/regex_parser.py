@@ -57,9 +57,8 @@ class RegexParser:
                 continue
             elif char.isalnum() or char == '#':  # Simbolo o marcador de fin
                 # Inserta concatenación si no es el último
-                if not (char == '#' and i == len(self.regex) - 1):
-                    if self.should_concat(last_token, 'literal'):
-                        output.append(Symbol('.', is_operator=True))
+                if self.should_concat(last_token, 'literal'):
+                    output.append(Symbol('.', is_operator=True))
                 token = Symbol(char, is_operator=False)
                 output.append(token)
                 last_token = token
