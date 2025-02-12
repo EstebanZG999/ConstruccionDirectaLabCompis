@@ -1,5 +1,5 @@
 # dfa.py
-
+import graphviz
 from syntax_tree import NodoHoja, NodoBinario, NodoUnario, SyntaxTree
 
 class DFA:
@@ -20,10 +20,8 @@ class DFA:
         self.build_dfa()
 
     def compute_followpos(self, node):
-        """Calcula la función followpos para cada posición del árbol."""
         followpos = {}
 
-        # Primero, inicializamos followpos para cada hoja (NodoHoja)
         def init_followpos(n):
             if isinstance(n, NodoHoja):
                 followpos[n.posicion] = set()
@@ -34,24 +32,25 @@ class DFA:
                 init_followpos(n.hijo)
         init_followpos(node)
 
-        # Ahora, recorremos el árbol para actualizar followpos según el operador
         def traverse(n):
             if isinstance(n, NodoBinario):
                 traverse(n.izquierdo)
                 traverse(n.derecho)
                 if n.valor == '.':
-                    # Para cada posición en lastpos del hijo izquierdo, se añade firstpos del hijo derecho.
+                    # Para cada p en lastpos(izquierdo), followpos[p] += firstpos(derecho)
                     for pos in n.izquierdo.lastpos:
-                        followpos[pos] = followpos[pos].union(n.derecho.firstpos)
+                        followpos[pos].update(n.derecho.firstpos)
             elif isinstance(n, NodoUnario):
                 traverse(n.hijo)
                 if n.valor == '*':
-                    # Para cada posición en lastpos del hijo, se añade firstpos del mismo hijo.
+                    # Para cada p en lastpos(hijo), followpos[p] += firstpos(hijo)
                     for pos in n.hijo.lastpos:
-                        followpos[pos] = followpos[pos].union(n.hijo.firstpos)
-            # Para NodoHoja no se hace nada
+                        followpos[pos].update(n.hijo.firstpos)
+            # NodoHoja no hace nada
         traverse(node)
+
         return followpos
+
 
     def compute_pos_to_symbol(self, node):
         """Crea un diccionario que mapea cada posición de un nodo hoja a su símbolo."""
@@ -69,27 +68,22 @@ class DFA:
         return pos_to_symbol
 
     def build_dfa(self):
-        """Construye el AFD utilizando la función followpos y la notación de conjuntos de posiciones."""
-        # Estado inicial: firstpos de la raíz del árbol
         initial = frozenset(self.syntax_tree.raiz.firstpos)
-        self.states[initial] = 0  # Asignamos el ID 0 al estado inicial
+        self.states[initial] = 0
         self.initial_state = 0
         unmarked_states = [initial]
         state_id_counter = 0
 
-        # Algoritmo de construcción
         while unmarked_states:
             current = unmarked_states.pop(0)
             current_state_id = self.states[current]
             self.transitions[current_state_id] = {}
 
             for symbol in self.alphabet:
-                # Para cada símbolo, calculamos el conjunto U:
-                # U = ⋃ { followpos(p) | p ∈ current y el símbolo en p es 'symbol' }
                 u = set()
                 for pos in current:
                     if self.pos_to_symbol[pos] == symbol:
-                        u = u.union(self.followpos[pos])
+                        u.update(self.followpos[pos])
                 if u:
                     u = frozenset(u)
                     if u not in self.states:
@@ -98,12 +92,11 @@ class DFA:
                         unmarked_states.append(u)
                     self.transitions[current_state_id][symbol] = self.states[u]
 
-        # Definir los estados de aceptación: aquellos estados que contienen la posición del marcador '#'
+        # Estados de aceptación
         for state_set, state_id in self.states.items():
-            for pos in state_set:
-                if self.pos_to_symbol[pos] == '#':
-                    self.accepting_states.add(state_id)
-                    break
+            if any(self.pos_to_symbol[pos] == '#' for pos in state_set):
+                self.accepting_states.add(state_id)
+
 
     def simulate(self, string):
         """Simula el AFD con la cadena de entrada 'string'. Devuelve True si se acepta, False en caso contrario."""
@@ -128,6 +121,36 @@ class DFA:
                 print(f"  δ({state_id}, '{symbol}') = {target}")
 
 
+
+    def render_dfa(self, filename="dfa"):
+        """
+        Genera un diagrama del AFD usando Graphviz.
+        Cada estado se representa por su ID y (opcionalmente) su conjunto de posiciones.
+        """
+        dot = graphviz.Digraph(format="png")
+
+        # Agregar estados
+        for state_set, state_id in self.states.items():
+            # Marca los estados de aceptación con doble círculo
+            shape = "doublecircle" if state_id in self.accepting_states else "circle"
+            # Etiqueta: muestra state_id y (si deseas) las posiciones
+            label = f"q{state_id}\n{state_set}"  
+            dot.node(str(state_id), label=label, shape=shape)
+
+        # Estado inicial: dibujar una flecha vacía que apunta al estado inicial
+        dot.node("start", shape="none", label="")
+        dot.edge("start", str(self.initial_state))
+
+        # Agregar transiciones
+        for state_id, trans_dict in self.transitions.items():
+            for symbol, target_id in trans_dict.items():
+                dot.edge(str(state_id), str(target_id), label=symbol)
+
+        # Renderizar
+        dot.render(filename, view=True)
+
+ 
+ 
 if __name__ == "__main__":
     # Ejemplo de uso:
     # 1. Se define una expresión regular.
@@ -148,7 +171,9 @@ if __name__ == "__main__":
     dfa.print_dfa()
     
     # 5. Simulación del AFD con cadenas de prueba.
-    test_strings = ["abab", "aabb", "ababb", "ababbbbabb"]
+    test_strings = ["aaabb", "aabb", "ababb", "ababbbbabb"]
     for s in test_strings:
         result = dfa.simulate(s)
         print(f"\nLa cadena '{s}' {'es aceptada' if result else 'NO es aceptada'} por la expresión regular.")
+
+    dfa.render_dfa("dfa")  
