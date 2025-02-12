@@ -33,6 +33,64 @@ class RegexParser:
         if current_token_type in ['literal', 'group_start']:
             return True
         return False
+
+    def expand_range(self, c1, c2):
+        """
+        Retorna la lista de caracteres que van desde c1..c2.
+        """
+        start = ord(c1)
+        end = ord(c2)
+        if start > end:
+            start, end = end, start
+        
+        expanded = []
+        for code in range(start, end + 1):
+            expanded.append(chr(code))
+        return expanded
+    
+    def parse_bracket_expression(self, bracket_content):
+        """
+        Dado el contenido dentro de [ ], genera una lista de tokens equivalente
+        """
+        i = 0
+        elements = []  # guardará listas de caracteres
+        
+        while i < len(bracket_content):
+            # Verificamos si hay patrón X-Y
+            if i+2 < len(bracket_content) and bracket_content[i+1] == '-':
+                # Tenemos un patrón X-Y
+                c1 = bracket_content[i]
+                c2 = bracket_content[i+2]
+                expanded_chars = self.expand_range(c1, c2)
+                elements.append(expanded_chars)
+                i += 3  # saltamos X-Y
+            else:
+                # Es un carácter suelto
+                elements.append([bracket_content[i]])
+                i += 1
+
+        all_chars = []
+        for idx, block in enumerate(elements):
+            # block es lista de caracteres expandidos
+            if not block:
+                continue
+            # Insertar los caracteres de 'block' separados por '|'
+            for j, c in enumerate(block):
+                # Añadimos el carácter como literal
+                all_chars.append(Symbol(c, is_operator=False))
+                # Si no es el último carácter de este bloque, ponemos '|'
+                if j < len(block) - 1:
+                    all_chars.append(Symbol('|', is_operator=True))
+            # Si no es el último bloque, añadimos otro OR
+            if idx < len(elements) - 1:
+                all_chars.append(Symbol('|', is_operator=True))
+
+        final_tokens = []
+        final_tokens.append(Symbol('(', is_operator=True))
+        final_tokens.extend(all_chars)
+        final_tokens.append(Symbol(')', is_operator=True))
+        
+        return final_tokens
     
     def tokenize(self):
         """
@@ -42,8 +100,12 @@ class RegexParser:
         output = []
         last_token = None 
         escaped = False
+
+        skip_until = -1
         
         for i, char in enumerate(self.regex):
+            if i < skip_until:
+                continue
             if escaped: # Si el carácter está escapado, lo tratamos como literal.
                 if self.should_concat(last_token, 'literal'):
                     output.append(Symbol('.', is_operator=True))
@@ -54,6 +116,33 @@ class RegexParser:
                 continue
             elif char == '\\':
                 escaped = True
+                continue
+            # Detectar '['
+            elif char == '[':
+                # Buscar la posición del ']' correspondiente
+                j = i + 1
+                found_closing = False
+                while j < len(self.regex):
+                    if self.regex[j] == ']':
+                        found_closing = True
+                        break
+                    j += 1
+                if not found_closing:
+                    raise ValueError("Falta ']' de cierre en la expresión regular.")
+                
+                bracket_content = self.regex[i+1 : j]  # extraemos todo lo que hay dentro de [ ]
+                
+                # Expandimos a un grupo de tokens
+                bracket_tokens = self.parse_bracket_expression(bracket_content)
+            
+                # Verificamos si hace falta concatenar
+                if self.should_concat(last_token, 'literal'):
+                    output.append(Symbol('.', is_operator=True))
+                
+                output.extend(bracket_tokens)
+                last_token = bracket_tokens[-1] if bracket_tokens else None
+
+                skip_until = j + 1
                 continue
             elif char.isalnum() or char == '#'or char == '$':  # Simbolo o marcador de fin
                 # Inserta concatenación si no es el último
@@ -164,7 +253,7 @@ class RegexParser:
         return self.to_postfix()
 
 if __name__ == "__main__":
-    regex = "(a|b)*bb#"
+    regex = "[A-Za-z]bb#"
     parser = RegexParser(regex)
     postfix = parser.parse()
     print("Tokens:", [str(token) for token in parser.tokens])  
