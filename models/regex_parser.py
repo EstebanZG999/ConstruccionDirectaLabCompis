@@ -91,6 +91,7 @@ class RegexParser:
         final_tokens.append(Symbol(')', is_operator=True))
         
         return final_tokens
+
     
     def tokenize(self):
         """
@@ -117,6 +118,7 @@ class RegexParser:
             elif char == '\\':
                 escaped = True
                 continue
+
             # Detectar '['
             elif char == '[':
                 # Buscar la posición del ']' correspondiente
@@ -144,6 +146,7 @@ class RegexParser:
 
                 skip_until = j + 1
                 continue
+                
             elif char.isalnum() or char == '#'or char == '$':  # Simbolo o marcador de fin
                 # Inserta concatenación si no es el último
                 if self.should_concat(last_token, 'literal'):
