@@ -97,7 +97,7 @@ class SyntaxTree:
         stack = []
         for token in self.postfix:
             # token es un Symbol. Para hojas comparamos token.value
-            if token.value.isalnum() or token.value == '#':
+            if (token.value.isalnum() or token.value == '#') or not token.is_operator:
                 nodo_hoja = NodoHoja(token.value, self.posicion_actual)
                 stack.append(nodo_hoja)
                 self.posicion_actual += 1
