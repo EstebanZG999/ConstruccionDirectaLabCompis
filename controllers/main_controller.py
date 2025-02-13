@@ -49,8 +49,16 @@ def run_app():
     n = ask_for_num_strings()
     for i in range(n):
         s = ask_for_string(i)
+
+        # Interpretamos '$' como la cadena vacía
+        if s == "$":
+            s = ""
+
         # Simular en el DFA 
         accepted = dfa.simulate(s)
-        show_simulation_result(s, accepted)
+        show_simulation_result(
+            "$" if s == "" else s,
+            accepted
+        )
 
     show_message("Fin de la ejecución.")
