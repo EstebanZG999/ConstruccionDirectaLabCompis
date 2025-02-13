@@ -1,6 +1,6 @@
-# dfa.py
+# models/dfa.py
 import graphviz
-from syntax_tree import NodoHoja, NodoBinario, NodoUnario, SyntaxTree
+from models.syntax_tree import NodoHoja, NodoBinario, NodoUnario, SyntaxTree
 
 class DFA:
     def __init__(self, syntax_tree):

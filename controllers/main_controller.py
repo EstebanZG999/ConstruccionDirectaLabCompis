@@ -1,24 +1,56 @@
-# main_controller.py
-from models.dfa import build_dfa
-from views.cli_view import get_user_input, show_dfa_construction_info, show_result
-# Asumiendo que la persona A expone un método parse_regex que retorne la raíz del árbol
-from models.regex_parser import parse_regex  
+# controllers/main_controller.py
 
-def run():
-    # 1. Obtener inputs
-    regex, cadena = get_user_input()
+from models.regex_parser import RegexParser
+from models.syntax_tree import SyntaxTree
+from models.dfa import DFA
+from models.mindfa import minimize_dfa
+from views.cli_view import (
+    ask_for_regex,
+    ask_for_num_strings,
+    ask_for_string,
+    show_dfa_info,
+    show_simulation_result,
+    show_message
+)
 
-    # 2. Parsear la expresión regular y construir el árbol
-    syntax_tree = parse_regex(regex)  # <-- Persona A
+def run_app():
+    # 1) Solicitar regex al usuario
+    user_regex = ask_for_regex()
+    
+    # 2) Parsear regex -> notación postfija
+    parser = RegexParser(user_regex)
+    postfix = parser.parse()
 
-    # 3. Construir el AFD
-    dfa = build_dfa(syntax_tree)
+    # 3) Construir árbol sintáctico
+    syntax_tree = SyntaxTree(postfix)
 
-    # (Opcional) Mostrar información sobre el AFD
-    show_dfa_construction_info(dfa)
+    # 4) Mostar árbol sintáctico
+    syntax_tree.render("syntax_tree")
 
-    # 4. Simular la cadena
-    is_accepted = dfa.simulate(cadena)
+    # 4) Construir DFA usando algoritmo directo
+    dfa = DFA(syntax_tree)
 
-    # 5. Mostrar resultado
-    show_result(is_accepted)
+    # 5) Minimizar el DFA
+    min_dfa = minimize_dfa(dfa)
+
+    # 6) Mostrar DFA original por consola
+    show_message("\n=== DFA original ===")
+    show_dfa_info(dfa)
+
+    # 7) Mostrar DFA mínimo por consola
+    show_message("\n=== DFA mínimo ===")
+    show_dfa_info(min_dfa)
+
+    # 8) Graficar ambos 
+    dfa.render_dfa("original_dfa")
+    min_dfa.render_dfa("min_dfa")
+
+    # 9) Pedir cadenas de prueba
+    n = ask_for_num_strings()
+    for i in range(n):
+        s = ask_for_string(i)
+        # Simular en el DFA 
+        accepted = dfa.simulate(s)
+        show_simulation_result(s, accepted)
+
+    show_message("Fin de la ejecución.")

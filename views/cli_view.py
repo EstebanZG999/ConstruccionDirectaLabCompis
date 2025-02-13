@@ -2,12 +2,11 @@
 
 def ask_for_regex():
     """Pide al usuario que ingrese la expresión regular."""
-    return input("Ingresa la expresión regular: ")
+    return input("Ingresa la expresión regular, termina la cadena en un # (aab#): ")
 
 def ask_for_num_strings():
     """Pide al usuario cuántas cadenas desea probar."""
     count = input("¿Cuántas cadenas deseas probar? ")
-    # Maneja conversión a int y validaciones
     return int(count)
 
 def ask_for_string(index):

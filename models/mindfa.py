@@ -1,6 +1,6 @@
 # mindfa.py
 
-from dfa import DFA
+from .dfa import DFA
 import graphviz
 
 def minimize_dfa(dfa: DFA) -> DFA:
