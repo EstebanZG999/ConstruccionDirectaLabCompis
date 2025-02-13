@@ -36,14 +36,17 @@ class NodoBinario(NodoBase):
     def calcular_propiedades(self):
         if self.valor == '.':  # Concatenación
             self.nullable = self.izquierdo.nullable and self.derecho.nullable
+
             self.firstpos = (self.izquierdo.firstpos |
                              (self.derecho.firstpos if self.izquierdo.nullable else set()))
             self.lastpos = (self.derecho.lastpos |
                             (self.izquierdo.lastpos if self.derecho.nullable else set()))
+
         elif self.valor == '|':  # Alternancia
             self.nullable = self.izquierdo.nullable or self.derecho.nullable
             self.firstpos = self.izquierdo.firstpos | self.derecho.firstpos
             self.lastpos = self.izquierdo.lastpos | self.derecho.lastpos
+
 
     def to_dot(self, dot):
         """Agrega este nodo binario y sus conexiones al gráfico DOT."""
@@ -58,6 +61,7 @@ class NodoBinario(NodoBase):
         # Conectar con aristas
         dot.edge(str(id(self)), str(id(self.izquierdo)))
         dot.edge(str(id(self)), str(id(self.derecho)))
+
 
 
 class NodoUnario(NodoBase):
@@ -82,6 +86,7 @@ class NodoUnario(NodoBase):
         dot.edge(str(id(self)), str(id(self.hijo)))
 
 
+
 class SyntaxTree:
     def __init__(self, postfix):
         self.postfix = postfix
@@ -104,10 +109,12 @@ class SyntaxTree:
                 izquierdo = stack.pop()
                 stack.append(NodoBinario(token.value, izquierdo, derecho))
         # El último nodo en el stack es la raíz
+
         return stack.pop()
     
     def obtener_raiz(self):
         return self.raiz
+
     
     def render(self, filename="syntax_tree"):
         """Genera una imagen (PNG) del árbol sintáctico usando Graphviz."""
