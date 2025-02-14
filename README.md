@@ -42,17 +42,20 @@ El sistema procesa una expresión regular, genera su notación postfija, constru
 
 ## Ejemplo de Entrada y Salida
 Entrada:
-```(a|b)*abb#```
+```(a|b)a*bb#```
 
 Salida Esperada:
 
-```Tokens: ['(', 'a', '|', 'b', ')', '*', '.', 'a', '.', 'b', '.', 'b', '#']```
+```Tokens: ['(', 'a', '|', 'b', ')', '.', 'a', '*', '.', 'b', '.', 'b', '.', '#']```
 
-```Postfix: ['a', 'b', '|', '*', 'a', '.', 'b', '.', 'b', '#', '.']```
+```Postfix: ['a', 'b', '|', 'a', '*', '.', 'b', '.', 'b', '.', '#', '.']```
 
 ✔ Árbol Sintáctico generado correctamente
 
 ✔ AFD y AFD Minimizado creados
+
+## 🎥 Video demostración
+[Aquí](https://youtu.be/oODn3RgnX10) puedes ver el funcionamiento del proyecto.
 
 ## 📚 Referencias
 #### Sintaxis de las expresiones regulares - Ayuda de Administrador de Google Workspace
