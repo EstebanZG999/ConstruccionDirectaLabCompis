@@ -17,13 +17,21 @@ El sistema procesa una expresión regular, genera su notación postfija, constru
 
 ## ⚙️ Instalación y Uso
 1. **Clona el repositorio**:
-    ```git clone <repository-url>```
-2. **Navega al directorio**:
-   ```cd <repository-name>```
-3. **Instala las dependencias**:
-    ```pip install graphviz```
+    ```
+   git clone <repository-url>
+    ```
+3. **Navega al directorio**:
+   ```
+   cd <repository-name>
+   ```
+5. **Instala las dependencias**:
+    ```
+   pip install graphviz
+    ```
 3. **Compila y ejecuta el proyecto**:
-    ```python main.py```
+    ```
+   python main.py
+    ```
 
 ### Cuando se ejecute, el sistema:
 1. Solicitará una expresión regular como entrada.
@@ -37,10 +45,11 @@ Entrada:
 ```(a|b)*abb#```
 
 Salida Esperada:
-```
-Tokens: ['(', 'a', '|', 'b', ')', '*', '.', 'a', '.', 'b', '.', 'b', '#']
-Postfix: ['a', 'b', '|', '*', 'a', '.', 'b', '.', 'b', '#', '.']
-```
+
+```Tokens: ['(', 'a', '|', 'b', ')', '*', '.', 'a', '.', 'b', '.', 'b', '#']```
+
+```Postfix: ['a', 'b', '|', '*', 'a', '.', 'b', '.', 'b', '#', '.']```
+
 ✔ Árbol Sintáctico generado correctamente
 
 ✔ AFD y AFD Minimizado creados
