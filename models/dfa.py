@@ -144,7 +144,8 @@ class DFA:
         # Agregar transiciones
         for state_id, trans_dict in self.transitions.items():
             for symbol, target_id in trans_dict.items():
-                dot.edge(str(state_id), str(target_id), label=symbol)
+                symbol_escaped = symbol.replace('\\', '\\\\').replace('"', '\\"')
+                dot.edge(str(state_id), str(target_id), label=f"\"{symbol_escaped}\"")
 
         # Renderizar
         dot.render(filename, view=True)
